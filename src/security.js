@@ -32,20 +32,6 @@ function computeSecureNodeId(ipaddr, opt_rand) {
   return id;
 };
 
-// ghetto tests
-const assert = require('assert');
-function testcase(ipstr, rand, expected) {
-  let id = computeSecureNodeId(ipstr, rand)
-  assert.strictEqual(expected, id.toString('hex').slice(0, 5), 'The first bits to match');
-  assert.strictEqual(id[19], rand, 'The random bits to match');
-}
-testcase('124.31.75.21', 1, '5fbfb');
-testcase('21.75.31.124', 86, '5a3ce');
-testcase('65.23.51.170', 22, 'a5d43');
-testcase('84.124.73.14', 65, '1b032');
-testcase('43.213.53.83', 90, 'e56f6');
-
-
 
 module.exports = {
   computeSecureNodeId: computeSecureNodeId
