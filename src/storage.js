@@ -39,6 +39,7 @@ function DHTStorage(dht) {
  */
 DHTStorage.prototype.dispose = function() {
   this.store_.dispose();
+  this.store_ = null;
 };
 
 

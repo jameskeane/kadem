@@ -185,10 +185,16 @@ DHT.prototype.listen = async function(opt_port, opt_host) {
 /**
  */
 DHT.prototype.dispose = function() {
-  this.announcedPeers_.dispose();
+  this.rpc_.dispose();
   this.extensions_.forEach((e) => e.dispose());
-  this.socket_.close();
+  this.announcedPeers_.dispose();
   this.nodes_.dispose();
+  this.socket_.close();
+  
+  this.announcedPeers_ = null;
+  this.nodes_ = null;
+  this.socket_ = null;
+  this.rpc_ = null;
 };
 
 

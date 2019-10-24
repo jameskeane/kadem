@@ -174,6 +174,7 @@ class RoutingTable extends EventEmitter {
 
   async _insertNode(node, relaxed) {
     // todo protect against rogue actor flooding ids using ip address checks
+    if (this._isDisposed) return;
     let bucket = this._root;
     while (bucket) {
       // if the bucket has space, just add it and be done

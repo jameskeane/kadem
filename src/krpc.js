@@ -66,10 +66,28 @@ function KRPCSocket(socket, opt_options) {
    * @private
    */
   this.socket_ = socket;
-  this.socket_.on('message', this.handleMessage_.bind(this));
-  this.socket_.on('error', this.handleError_.bind(this));
+
+  this.boundHandleMessage_ = this.handleMessage_.bind(this);
+  this.boundHandleError = this.handleError_.bind(this);
+  this.socket_.on('message', this.boundHandleMessage_);
+  this.socket_.on('error', this.boundHandleError);
 };
 util.inherits(KRPCSocket, EventEmitter);
+
+
+KRPCSocket.prototype.dispose = function() {
+  this.removeAllListeners();
+  this.socket_.removeListener('message', this.boundHandleMessage_);
+  this.socket_.removeListener('error', this.boundHandleError);
+  this.socket_ = null;
+
+  // clear outstanding transactions
+  for (let [_, reject, timeout] of Object.values(this.outstandingTransactions_)) {
+    clearTimeout(timeout);
+    reject('Socket is disposing');
+  }
+  this.outstandingTransactions_ = {};
+};
 
 
 /**
@@ -225,7 +243,8 @@ KRPCSocket.prototype.transact_ = function(node, inner) {
     // Register the transaction
     this.outstandingTransactions_[tstr] = [
       (res) => { cleanUp(); resolve(res); },
-      (err) => { cleanUp(); reject(err); }
+      (err) => { cleanUp(); reject(err); },
+      timeout
     ];
 
     // call the inner fn

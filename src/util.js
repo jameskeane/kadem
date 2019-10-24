@@ -8,7 +8,6 @@ class PromiseSelector {
   }
 
   get length() { return this.promises.length; }
-  
   add(promises) {
     if (!Array.isArray(promises)) promises = [promises];
 
