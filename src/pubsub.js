@@ -1,6 +1,5 @@
 const ed25519 = require('ed25519-supercop'),
       bencode = require('bencode'),
-      KBucket = require('k-bucket'),
       debug = require('debug')('dht:storage'),
       TokenStore = require('./token-store'),
       { sha1 } = require('./util');

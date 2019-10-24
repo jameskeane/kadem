@@ -1,7 +1,7 @@
 'use strict';
 module.exports = DHT;
 const util = require('util'),
-      utp = require('utp-native'),
+      dgram = require('dgram'),
       crypto = require('crypto'),
       fs = require('fs'),
       EventEmitter = require('events').EventEmitter,
@@ -93,7 +93,8 @@ function DHT(opt_options) {
    * @type {Socket}
    * @private
    */
-  this.socket_ = opt_options.socket || utp();
+  this.socket_ = opt_options.socket ||
+      dgram.createSocket({ type: 'udp4', reuseAddr: true });
 
   /**
    */
@@ -160,7 +161,7 @@ DHT.load = function(filename) {
 DHT.prototype.listen = async function(opt_port, opt_host) {
   debug('Starting DHT on port %s', opt_port);
   const listen = () => new Promise((resolve, reject) =>
-      this.socket_.listen(opt_port, opt_host, resolve));
+      this.socket_.bind(opt_port, opt_host, resolve));
 
   await listen();
   this.isBound_ = true;
@@ -190,7 +191,7 @@ DHT.prototype.dispose = function() {
   this.announcedPeers_.dispose();
   this.nodes_.dispose();
   this.socket_.close();
-  
+
   this.announcedPeers_ = null;
   this.nodes_ = null;
   this.socket_ = null;

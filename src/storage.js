@@ -1,9 +1,9 @@
 const ed25519 = require('ed25519-supercop'),
       bencode = require('bencode'),
-      KBucket = require('k-bucket'),
       debug = require('debug')('dht:storage'),
       TokenStore = require('./token-store'),
-      { sha1 } = require('./util');
+      { distance } = require('./routing'),
+      { sha1, PQueue } = require('./util');
 
 
 module.exports = DHTStorage;
@@ -138,14 +138,14 @@ DHTStorage.prototype.put = async function(key_or_v, opt_salt, cb) {
   if (opt_salt) prev.salt = opt_salt;
 
   // create a bucket to store nodes with write tokens
-  const writeable = new KBucket({ localNodeId: target });
+  const writeable = new PQueue(this.dht_.K_);
   await this.dht_.closest_(target, 'get', {
     'target': target,
     'id': this.dht_.id
   }, (r, node) => {
     if (node.token) {
       debug('found writable node', node.address);
-      writeable.add(node);
+      writeable.push(distance(target, node.id), node);
     }
     if (r.v) {
       // todo exit if the seq is higher than what we are trying to put
@@ -172,7 +172,7 @@ DHTStorage.prototype.put = async function(key_or_v, opt_salt, cb) {
   if (signed.v.length > 1000) throw new Error('v must be less than 1000 bytes');
 
   // write to the K closest
-  const closest = writeable.closest(target, this.dht_.K_);
+  const closest = writeable.items();
   await this.rpc_.query(closest, 'put', signed);
   return target;
 };
@@ -189,16 +189,16 @@ DHTStorage.prototype.putImmutable_ = async function(data) {
   debug('Writing immutable data as \'%s\'.', target.toString('hex'));
 
   // create a bucket to store nodes with write tokens
-  const writeable = new KBucket({ localNodeId: target });
+  const writeable = new PQueue(this.dht_.K_);
   await this.dht_.closest_(target, 'get', {
     'target': target,
     'id': this.dht_.id
   }, (r, node) => {
-    if (node.token) writeable.add(node);
+    if (node.token) writeable.push(distance(target, node.id), node);
   });
 
   // write to the K closest
-  const closest = writeable.closest(target, this.dht_.K_);
+  const closest = writeable.items();
   await this.rpc_.query(closest, 'put', {
     'id': this.dht_.id,
     'v': v,

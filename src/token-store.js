@@ -48,6 +48,7 @@ function TokenStore() {
  */
 TokenStore.prototype.dispose = function() {
   clearInterval(this.refreshInterval_);
+  this.store_ = null;
 };
 
 

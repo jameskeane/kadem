@@ -10,9 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "bencode": "^2.0.1",
-    "k-bucket": "^5.0.0",
-    "lru-cache": "^5.1.1",
-    "utp-native": "^2.1.4"
+    "lru-cache": "^5.1.1"
   },
   "optionalDependencies": {
     "ed25519-supercop": "^1.2.0",
