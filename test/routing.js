@@ -1,4 +1,5 @@
 const assert = require('assert');
+const sinon = require('sinon');
 const { RoutingTable } = require('../src/routing');
 
 
@@ -77,7 +78,6 @@ describe('The routing table', () => {
   });
 
   describe('The refresh process', () => {
-
     // When a node in a bucket is pinged and it responds, or a node is added to
     // a bucket, or a node in a bucket is replaced with another node, the
     // bucket's last changed property should be updated
@@ -86,10 +86,18 @@ describe('The routing table', () => {
       let rt = new RoutingTable(ids[0], { K: 1 });
       rt.recordQuery(ni(ids[1], ips[1], 6881));
       rt.recordResponse(ni(ids[2], ips[2], 6881));
-      rt.on('refresh', (forId) => {
-        console.log('refresh', forId);
-      });
+
+      let refresh_ids = [];
+      rt.on('refresh', (forId) => { refresh_ids.push(forId); });
+
+      // stub Math.random and call refresh
+      let rnd = sinon.stub(Math, 'random').returns(4);
       rt.refresh(-1);
+      rnd.reset();
+      assert.deepEqual(refresh_ids, [
+        Buffer.alloc(20, 0x80), Buffer.alloc(20, 0x04),
+        Buffer.alloc(20, 0xc4), Buffer.alloc(20, 0xe4)
+      ]);
     });
   })
 

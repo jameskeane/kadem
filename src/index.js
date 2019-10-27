@@ -14,6 +14,10 @@ const util = require('util'),
 
 
 
+const ROUTING_REFRESH_INTERVAL = 1000 * 60 * 15;  // 15 minutes
+
+
+
 /**
  * @typedef {{
  *   address: string,
@@ -91,7 +95,11 @@ function DHT(opt_options) {
    */
   this.nodes_ = new RoutingTable(this.id, { K: this.K_ });
   this.nodes_.on('ping', this.handleBucketPing_.bind(this));
+  this.nodes_.on('refresh', this.handleBucketRefresh_.bind(this));
   if (opt_options.nodes) this.nodes_.loadState(opt_options.nodes);
+
+  this.refreshTimer_ = setInterval(
+      this.handleRoutingRefresh_.bind(this), ROUTING_REFRESH_INTERVAL);
 
   /**
    * @type {dgram.Socket}
@@ -186,6 +194,7 @@ DHT.prototype.listen = async function(opt_port, opt_host) {
 /**
  */
 DHT.prototype.dispose = function() {
+  clearInterval(this.refreshTimer_);
   this.rpc_.dispose();
   this.extensions_.forEach((e) => e.dispose());
   this.announcedPeers_.dispose();
@@ -284,10 +293,34 @@ DHT.prototype.isBound = function() {
 
 
 /**
+ * @param {NodeInfo} node The node that needs to be pinged.
+ * @param {function(boolean): void} callback Callback to whether the ping
+ *     succeeded or not.
  */
-DHT.prototype.handleBucketPing_ = async function(nodeInfo, callback) {
-  const res = await this.ping(nodeInfo);
+DHT.prototype.handleBucketPing_ = async function(node, callback) {
+  const res = await this.ping(node);
   callback(!!res.error);
+};
+
+
+/**
+ * When a bucket needs to be refreshed, we call find_node on a random id in the
+ * range.
+ * > "Buckets that have not been changed in 15 minutes should be "refreshed."
+ * > This is done by picking a random ID in the range of the bucket and
+ * > performing a find_nodes search on it."
+ * - BEP-5
+ * @param {Buffer} rangeId a random node id in the range of the bucket.
+ */
+DHT.prototype.handleBucketRefresh_ = async function(rangeId) {
+  this.find_node(rangeId);
+};
+
+
+/**
+ */
+DHT.prototype.handleRoutingRefresh_ = function() {
+  this.nodes_.refresh();
 };
 
 
