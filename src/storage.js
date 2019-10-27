@@ -13,6 +13,8 @@ module.exports = DHTStorage;
 /**
  * Storage Extension for the DHT.
  * Implements [BEP-44](http://www.bittorrent.org/beps/bep_0044.html)
+ * @constructor
+ * @param {IDHT} dht The DHT instance that this extension is extending
  */
 function DHTStorage(dht) {
   this.provides = ['get', 'put'];
@@ -39,30 +41,36 @@ function DHTStorage(dht) {
  */
 DHTStorage.prototype.dispose = function() {
   this.store_.dispose();
-  this.store_ = null;
 };
 
 
 /**
+ * @typedef {{ k?: Buffer|string, salt?: Buffer|string }} DHTGetOptions
+ * @typedef {{ v?: Buffer, k?: Buffer, sig?: Buffer, seq?: number, salt?: Buffer }} DHTStoreRecord
  */
-DHTStorage.prototype.get = async function(target, opt_options) {
-  let opts = opt_options || {};
-  if (!Buffer.isBuffer(target) && typeof target === 'object') {
-    opts = target;
+
+/**
+ * Lookup a value on the DHT.
+ * @param {Buffer|string|DHTGetOptions} args Either the SHA1 target
+ *     hash of the value or the options dictionary.
+ */
+DHTStorage.prototype.get = async function(args) {
+  // decode the arguments
+  let opts = Buffer.isBuffer(args) || typeof args === 'string' ? null : args;
+  let salt = !(opts && 'salt' in opts) ? undefined :
+        (typeof opts.salt === 'string' ? Buffer.from(opts.salt) : opts.salt);
+  let k = !(opts && 'k' in opts) ? undefined :
+        (typeof opts.k === 'string' ? Buffer.from(opts.k, 'hex') : opts.k);
+  /** @type {Buffer} */
+  let target;
+  if (Buffer.isBuffer(args)) {
+    target = args;
+  } else if (typeof args === 'string') {
+    target = Buffer.from(args, 'hex');
   } else {
-    opts.target = (typeof target === 'string') ?
-      Buffer.from(target, 'hex') : target;
+    if (!k) throw new Error('A target key _must_ be provided.');
+    target = sha1(salt ? Buffer.concat([k, salt]) : k);
   }
-
-  let salt = !('salt' in opts) ? undefined :
-      (Buffer.isBuffer(opts.salt) ? opts.salt : Buffer.from(opts.salt)); 
-
-  if (opts.k) {
-    target = opts.target = sha1(salt ?
-        Buffer.concat([opts.k, salt]) : opts.k);
-  }
-
-  target = opts.target;
 
   // first check if we have it locally
   const stored = this.store_.get(target);
@@ -76,24 +84,7 @@ DHTStorage.prototype.get = async function(target, opt_options) {
   const res = await this.dht_.closest_(target, 'get', {
     'target': target,
     'id': this.dht_.id
-  }, (r) => {
-    if (!r || !r.v) return;
-    var isMutable = r.k || r.sig
-    if (isMutable) {
-      if (!r.sig || !r.k) return;
-      if (!ed25519.verify(r.sig, encodeSigData(r, salt), r.k)) {
-        debug('Received bad signature for \'%s\'.', target.toString('hex'));
-        return;
-      }
-      if (sha1(salt ? Buffer.concat([r.k, salt]) : r.k).equals(target)) {
-        return r;
-      }
-    } else {
-      if (sha1(bencode.encode(r.v)).equals(target)) {
-        return r;
-      }
-    }
-  });
+  }, GetResponseValidator(target, salt));
 
   if (res) {
     debug('Found %s value for \'%s\'.',
@@ -101,17 +92,24 @@ DHTStorage.prototype.get = async function(target, opt_options) {
   } else {
     debug('No value found for \'%s\'.', target.toString('hex'));
   }
-
   return res;
 };
 
 
+/**
+ * @typedef {function(function(DHTStoreRecord, Buffer): void, DHTStoreRecord=): DHTStoreRecord} DHTSignatureCallback
 
 /**
+ * @param {Buffer|string} key_or_v Either the value (if immutable) or public key
+ *     if mutable.
+ * @param {(DHTSignatureCallback|string|Buffer)=} opt_salt Optional salt for
+ *     mutable puts, or if no salt the signature callback.
+ * @param {DHTSignatureCallback=} cb If using salt, the signature callback.
  */
 DHTStorage.prototype.put = async function(key_or_v, opt_salt, cb) {
   // if immutable
   if (opt_salt === undefined) return this.putImmutable_(key_or_v);
+  if (typeof key_or_v === 'string') throw new Error('Invalid public key');
   if (typeof opt_salt === 'function') {
     cb = opt_salt;
     opt_salt = undefined;
@@ -122,6 +120,7 @@ DHTStorage.prototype.put = async function(key_or_v, opt_salt, cb) {
 
   if (opt_salt && opt_salt.length > 64) throw new Error('Salt must be less than 64 bytes.');
   if (key_or_v.length !== 32) throw new Error('ed25519 public key must be 32 bytes.');
+  if (!cb) throw new Error('A signing function must be provided');
 
   const target = sha1(opt_salt ?
       Buffer.concat([key_or_v, opt_salt]) : key_or_v);
@@ -129,6 +128,7 @@ DHTStorage.prototype.put = async function(key_or_v, opt_salt, cb) {
       key_or_v.toString('hex'), opt_salt ? '::' + opt_salt.toString('hex') : '');
 
   // prepare write tokens
+  /** @type {DHTStoreRecord} */
   let prev = {
     k: key_or_v,
     v: undefined,
@@ -313,9 +313,44 @@ DHTStorage.prototype.handlePutQuery_ = function(args, node) {
 
 
 /**
+ * @param {DHTStoreRecord} msg The storage record to encode.
+ * @param {Buffer=} opt_salt Optional salt value.
  */
-function encodeSigData(msg, opt_salt) {
+function encodeSigData(msg, opt_salt=undefined) {
+  /** @type {DHTStoreRecord} */
   var ref = { seq: msg.seq || 0, v: msg.v };
   if (opt_salt || msg.salt) ref.salt = opt_salt || msg.salt;
   return bencode.encode(ref).slice(1, -1);
 };
+
+
+/**
+ * @param {Buffer} target The requested target hash.
+ * @param {Buffer=} opt_salt If mutable, the optional salt value.
+ */
+function GetResponseValidator(target, opt_salt=undefined) {
+  /**
+   * @param {DHTStoreRecord} r
+   * @return {any|undefined}
+   */
+  function checker(r) {
+    if (!r || !r.v) return;
+    var isMutable = r.k || r.sig
+    if (isMutable) {
+      if (!r.sig || !r.k) return;
+      if (!ed25519.verify(r.sig, encodeSigData(r, opt_salt), r.k)) {
+        debug('Received bad signature for \'%s\'.', target.toString('hex'));
+        return;
+      }
+      if (sha1(opt_salt ? Buffer.concat([r.k, opt_salt]) : r.k).equals(target)) {
+        return r;
+      }
+    } else {
+      if (sha1(bencode.encode(r.v)).equals(target)) {
+        return r;
+      }
+    }
+  }
+  return checker;
+}
+

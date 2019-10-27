@@ -2,7 +2,7 @@ const assert = require('assert'),
       EventEmitter = require('events').EventEmitter,
       sinon = require('sinon'),
       bencode = require('bencode'),
-      KRPCSocket = require('../src/krpc');
+      { KRPCSocket } = require('../src/krpc');
 
 
 describe('KRPC Protocol', () => {

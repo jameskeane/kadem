@@ -7,8 +7,7 @@ const util = require('util'),
       EventEmitter = require('events').EventEmitter,
       debug = require('debug')('dht'),
       { RoutingTable, distance } = require('./routing'),
-      bencode = require('bencode'),
-      KRPCSocket = require('./krpc'),
+      { KRPCSocket } = require('./krpc'),
       { PromiseSelector, PQueue } = require('./util'),
       TokenStore = require('./token-store'),
       bep44 = require('./storage');
@@ -17,20 +16,23 @@ const util = require('util'),
 
 /**
  * @typedef {{
- *   nodes: Array.<PeerInfo>
+ *   address: string,
+ *   port: number,
+ *   family?: string
  * }}
  */
-var DHTOptions;
+var PeerInfo;
 
 
 /**
  * @typedef {{
- *   address: string,
- *   family: string,
- *   port: number
+ *   id?: Buffer|string,
+ *   K?: number,
+ *   nodes?: Array.<any>,
+ *   bootstrapNodes?: Array.<PeerInfo>
  * }}
  */
-var PeerInfo;
+var DHTOptions;
 
 
 /**
@@ -38,8 +40,9 @@ var PeerInfo;
  * @const
  */
 const BOOTSTRAP_NODES = [
-  {address: 'router.bittorrent.com', port: 6881},
-  {address: 'router.utorrent.com', port: 6881}
+  { address: 'router.bittorrent.com', port: 6881 },
+  { address: 'router.utorrent.com', port: 6881 },
+  { address: 'dht.transmissionbt.com', port: 6881 }
 ];
 
 
@@ -48,6 +51,7 @@ const BOOTSTRAP_NODES = [
  *   * [BEP 0005](http://www.bittorrent.org/beps/bep_0005.html)
  * @constructor
  * @param {DHTOptions=} opt_options Optional initialization options
+ * @extends {EventEmitter}
  */
 function DHT(opt_options) {
   EventEmitter.call(this);
@@ -64,8 +68,10 @@ function DHT(opt_options) {
   /**
    * @type {Buffer}
    */
-  this.id = opt_options.id ?
-      Buffer.from(opt_options.id, 'hex') : crypto.randomBytes(20);
+  this.id = opt_options.id ? (
+      Buffer.isBuffer(opt_options.id) ?
+          opt_options.id : Buffer.from(opt_options.id, 'hex')) :
+      crypto.randomBytes(20);
 
   /**
    * @type {!Array.<!PeerInfo>}
@@ -85,12 +91,10 @@ function DHT(opt_options) {
    */
   this.nodes_ = new RoutingTable(this.id, { K: this.K_ });
   this.nodes_.on('ping', this.handleBucketPing_.bind(this));
-  // (opt_options.nodes || []).forEach((node) => {
-  //   this.nodes_.add(node);
-  // });
+  if (opt_options.nodes) this.nodes_.loadState(opt_options.nodes);
 
   /**
-   * @type {Socket}
+   * @type {dgram.Socket}
    * @private
    */
   this.socket_ = opt_options.socket ||
@@ -139,19 +143,15 @@ util.inherits(DHT, EventEmitter);
 
 /**
  * Instantiate a DHT from a serialized state file.
+ * @param {string} filename The filename to load from.
  */
 DHT.load = function(filename) {
-  let state = JSON.parse(fs.readFileSync(filename));
+  let state = JSON.parse(fs.readFileSync(filename).toString('utf-8'));
   return new DHT({
     K: state.K,
     id: Buffer.from(state.id, 'hex'),
     bootstrapNodes: [],
-    nodes: state.nodes.map((n) => {
-      let node = { ...n };
-      node.id = Buffer.from(n.id, 'hex');
-      if (n.token) node.token = Buffer.from(n.token, 'hex');
-      return node;
-    })
+    nodes: state.nodes
   });
 };
 
@@ -206,12 +206,7 @@ DHT.prototype.save = function(filepath) {
   let state = {
     K: this.K_,
     id: this.id.toString('hex'),
-    nodes: this.nodes_.toArray().map((n) => {
-      let node = { ...n };
-      node.id = n.id.toString('hex');
-      if (n.token) node.token = n.token.toString('hex');
-      return node;
-    })
+    nodes: this.nodes_.getState()
   };
   fs.writeFileSync(filepath, JSON.stringify(state));
 };
@@ -327,6 +322,7 @@ DHT.prototype.handleNodeResponse_ = function(node) {
  * @param {NodeInfo} node The node that didn't respond.
  */
 DHT.prototype.handleNodeTimeout_ = function(node) {
+  if (!node.id) return;
   debug('Recording timeout for node %s', node.id.toString('hex'));
   this.nodes_.recordNoResponse(node);
 };

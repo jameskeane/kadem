@@ -1,5 +1,4 @@
 const { EventEmitter } = require('events');
-const { NodeInfo } = require('./krpc');
 const debug = require('debug')('dht:routing');
 
 
@@ -10,14 +9,21 @@ const SILENCE_BEFORE_BAD = 3;
 
 
 class Node {
-  constructor(nodeInfo) {
-    this.id = (typeof nodeInfo.id === 'string') ?
-        Buffer.from(nodeInfo.id, 'hex') : nodeInfo.id;
-    this.ip = nodeInfo.address;
-    this.port = nodeInfo.port;
-    this.token = nodeInfo.token;
+  /**
+   * @param {NodeInfo} node The node info.
+   */
+  constructor(node) {
+    this.id = (typeof node.id === 'string') ?
+        Buffer.from(node.id, 'hex') : node.id;
 
+    /** @type {AddressInfo} */
+    this.address = { address: node.address, port: node.port, family: node.family };
+    this.token = node.token;
+
+    /** @type {number|null} */
     this.lastResponse = null;
+
+    /** @type {number|null} */
     this.lastReceivedQuery = null;
     this.failedResponses = 0;
   }
@@ -26,7 +32,7 @@ class Node {
     const now = Date.now();
     return this.lastResponse && (this.failedResponses < SILENCE_BEFORE_BAD) && (
         (this.lastResponse >= (now - GOODNESS_TIMEOUT)) ||
-        (this.lastReceivedQuery >= (now - GOODNESS_TIMEOUT)) );
+        (this.lastReceivedQuery && this.lastReceivedQuery >= (now - GOODNESS_TIMEOUT)) );
   }
 
   get isBad() {
@@ -34,7 +40,8 @@ class Node {
   }
 
   toNodeInfo() {
-    let ni = { id: this.id, address: this.ip, port: this.port };
+    /** @type {NodeInfo} */
+    let ni = { id: this.id, ...this.address };
     if (this.token) ni.token = this.token;
     return ni;
   }
@@ -42,31 +49,35 @@ class Node {
 
 
 class Bucket {
+  /**
+   * @param {Buffer} min The minimum node id of this bucket.
+   * @param {Buffer} max The maximum node id of this bucket.
+   */
   constructor(min, max) {
     this.min = min;
     this.max = max;
-
-    this.contacts = [];
-    this.left = null;
-    this.right = null;
     this.lastChanged = Date.now();
+
+    /** @type {Array.<Node>} */
+    this.contacts = [];
+
+    /** @type {Bucket|null} */
+    this.left = null;
+
+    /** @type {Bucket|null} */
+    this.right = null;
   }
 }
 
 
 /**
- * @typedef {{
- *   localId: Buffer,
- *   K?: number
- * }}
+ * @typedef {{ K?: number }} RoutingOptions
  */
-var RoutingOptions;
-
-
 
 
 class RoutingTable extends EventEmitter {
   /**
+   * @param {Buffer} localId The local node id of this routing table.
    * @param {RoutingOptions} options Configuration for this routing table.
    */
   constructor(localId, options = {}) {
@@ -81,10 +92,16 @@ class RoutingTable extends EventEmitter {
     /** @private */
     this._K = options.K || 8;
 
-    /** @private */
+    /**
+     * @type {Bucket|null}
+     * @private
+     */
     this._root = new Bucket(Buffer.alloc(20), Buffer.alloc(20, 0xff));
 
-    /** @private */
+    /**
+     * @type {Object.<string, Node>}
+     * @private
+     */
     this._nodeMap = {};
 
     /** @private */
@@ -92,6 +109,51 @@ class RoutingTable extends EventEmitter {
   }
 
   get length() { return Object.keys(this._nodeMap).length; }
+
+  /**
+   * todo type the serialization format
+   * @param {any[]} state
+   */
+  loadState(state) {
+    for (let ns of state) {
+      let idStr = ns[0];
+      let id = Buffer.from(idStr, 'hex'),
+            address = ns[1], port = ns[2], family = ns[3],
+            token = ns[4] ? Buffer.from(ns[4], 'hex') : undefined;
+      let ni = { id, address, port, family, token };
+      let lastResponse = ns[5], lastReceivedQuery = ns[6],
+          failedResponses = ns[7];
+
+      let node = this._nodeMap[idStr];
+      if (node) {
+        node.lastResponse = lastResponse ? lastResponse : node.lastResponse;
+        node.lastReceivedQuery = lastReceivedQuery ? lastReceivedQuery : node.lastReceivedQuery;
+        node.failedResponses = failedResponses ? failedResponses : node.failedResponses;
+      } else {
+        node = new Node(ni);
+        node.lastResponse = lastResponse;
+        node.lastReceivedQuery = lastReceivedQuery;
+        node.failedResponses = failedResponses;
+        this._insertNode(node);
+      }
+    }
+  }
+
+  getState() {
+    /** @type {[number, Node][]} */
+    let all_nodes = Object.values(this._nodeMap)
+        .map((n) => [distance(this.localId, n.id), n]);
+
+    all_nodes.sort((a, b) => a[0] - b[0]);
+    return all_nodes.map(([d, n]) => {
+      return [
+          n.id.toString('hex'),
+          n.address.address, n.address.port, n.address.family,
+          n.token ? n.token.toString('hex') : null,
+          n.lastResponse, n.lastReceivedQuery, n.failedResponses
+      ];
+    });
+  }
 
   dispose() {
     // todo if there are outstanding pings disposing can take upto 5s
@@ -102,14 +164,38 @@ class RoutingTable extends EventEmitter {
     this._nodeMap = {};
   }
 
+  /**
+   * @param {Buffer} id The id to search for.
+   */
   closest(id, n=10) {
     id = (typeof id === 'string') ? Buffer.from(id, 'hex') : id;
     // todo, naive sort all nodes -- can be optimized?
     let allNodes = Object.values(this._nodeMap);
+    /** @type {[number, Node][]} */
     let byDist = allNodes.map((node) => [distance(id, node.id), node]);
 
     byDist.sort((a, b) => a[0] - b[0]);
     return byDist.slice(0, n).map(([d, n]) => n.toNodeInfo());
+  }
+
+  /**
+   * Check the 'freshness' of each bucket, if any are older than the ttl timeout
+   * then fire a 'refresh' event with a random node id in the range.
+   */
+  refresh(ttl=GOODNESS_TIMEOUT) {
+    const now = Date.now();
+    let queue = [this._root];
+    let bucket;
+    while (bucket = queue.shift()) {
+      if (bucket.left && bucket.right) {
+        queue.push(bucket.left, bucket.right);
+      }
+      else if (bucket.lastChanged < now - ttl) {
+        // needs refresh
+        let rid = rand_on_range(bucket.min, bucket.max);
+        this.emit('refresh', rid);
+      }
+    }
   }
 
   /**
@@ -172,9 +258,13 @@ class RoutingTable extends EventEmitter {
     node.failedResponses += 1;
   }
 
+  /**
+   * @param {Node} node The node to insert.
+   * @param {boolean} relaxed, whether to use relaxed mode... todo
+   */
   async _insertNode(node, relaxed) {
     // todo protect against rogue actor flooding ids using ip address checks
-    if (this._isDisposed) return;
+    if (this._isDisposed || this._root === null) return;
     let bucket = this._root;
     while (bucket) {
       // if the bucket has space, just add it and be done
@@ -193,12 +283,15 @@ class RoutingTable extends EventEmitter {
 
       // split the bucket if it contains the localId:
       if (bucket.min <= this.localId && this.localId < bucket.max) {
-        if (this._split(bucket)) {
+        if (this._split(bucket, relaxed)) {
+          if (bucket.left === null || bucket.right === null)
+            throw new Error('Bucket could not be split.');
           bucket = (node.id < bucket.left.max) ? bucket.left : bucket.right;
           continue;
         }
       }
 
+      /** @param {Node} badnode */
       const replace = (badnode) => {
         this._evict(bucket, badnode);
         bucket.contacts.push(node);
@@ -225,7 +318,7 @@ class RoutingTable extends EventEmitter {
 
       // 2. otherwise, pick the least recently seen node and ping it
       //    if it doesn't respond then replace it
-      unknown.sort((a, b) => (a.lastResponse || 0) - b.lastResponse);
+      unknown.sort((a, b) => (a.lastResponse || 0) - (b.lastResponse || 0));
       let checknode;
 
       // todo bulk ping?
@@ -249,11 +342,19 @@ class RoutingTable extends EventEmitter {
     }
   }
 
+  /**
+   * @param {Bucket} bucket The bucket to evict from.
+   * @param {Node} node The node to evict.
+   */
   _evict(bucket, node) {
     delete this._nodeMap[node.id.toString('hex')];
     bucket.contacts.splice(bucket.contacts.indexOf(node), 1);
   }
 
+  /**
+   * Wrapper around the ping event so it can be used as a promise.
+   * @param {Node} node The node to ping.
+   */
   async _ping(node) {
     // wrap the ping event in a promise
     return new Promise((resolve) => {
@@ -263,7 +364,7 @@ class RoutingTable extends EventEmitter {
         resolve(false);
       }, 5000);  // implementor should respond within 5 seconds
 
-      this.emit('ping', node.toNodeInfo(), (responded) => {
+      this.emit('ping', node.toNodeInfo(), (/** @type {boolean} */ responded) => {
         if (failed) return;  // already failed
         clearTimeout(timer);
 
@@ -279,6 +380,11 @@ class RoutingTable extends EventEmitter {
     });
   }
 
+  /**
+   * Split a bucket.
+   * @param {Bucket} bucket The bucket to split.
+   * @param {boolean} relaxed Whether to use relaxed mode... todo
+   */
   _split(bucket, relaxed) {
     // todo relaxed splitting per https://stackoverflow.com/a/32187456
     let c = mid(bucket.min, bucket.max);
@@ -291,13 +397,18 @@ class RoutingTable extends EventEmitter {
       let target = (node.id < c) ? bucket.left : bucket.right;
       target.contacts.push(node);
     }
-    bucket.contacts = null;
+    bucket.contacts = [];
     return true;
   }
 }
 
 
-
+/**
+ * Compute the node distance (XOR) between two node ids.
+ * @param {Buffer} firstId The first id.
+ * @param {Buffer} secondId The second id.
+ * @return {number} The 'distance' metric between the two nodes.
+ */
 function distance(firstId, secondId) {
   let distance = 0
   let i = 0
@@ -310,8 +421,28 @@ function distance(firstId, secondId) {
   return distance
 }
 
+
+/**
+ * Compute the middle point between two node ids.
+ * @param {Buffer} min The smaller id.
+ * @param {Buffer} max The larger id.
+ * @return {Buffer} The middle point between the two ids.
+ */
 function mid(min, max) {
-  return max.map((d, i) => (d+1-min[i])/2).map((d, i) => d + min[i]);
+  return Buffer.from(
+      max.map((d, i) => (d+1-min[i])/2).map((d, i) => d + min[i]));
+}
+
+
+/**
+ * Generate a random node id in the provided range.
+ * @param {Buffer} min The minimum node id.
+ * @param {Buffer} max The maximum node id.
+ */
+function rand_on_range(min, max) {
+  return Buffer.from(max
+      .map((d, i) => Math.floor((d+1-min[i]) * Math.random()))
+      .map((d, i) => d + min[i]));
 }
 
 module.exports = { RoutingTable, distance };

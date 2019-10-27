@@ -82,8 +82,19 @@ describe('The routing table', () => {
     // a bucket, or a node in a bucket is replaced with another node, the
     // bucket's last changed property should be updated
     it('should update the buckets last change when appropriate');
-    it('should refresh buckets that have not been changed in the last 15 minutes');
+    it('should refresh buckets that have not been changed in the last X minutes', () => {
+      let rt = new RoutingTable(ids[0], { K: 1 });
+      rt.recordQuery(ni(ids[1], ips[1], 6881));
+      rt.recordResponse(ni(ids[2], ips[2], 6881));
+      rt.on('refresh', (forId) => {
+        console.log('refresh', forId);
+      });
+      rt.refresh(-1);
+    });
   })
+
+  it('can save state');
+  it('can load state');
 
   // it('will not split a bucket that does\'t contain the local id', () => {
   //   let rt = new RoutingTable(ids[0], { K: 1 });
@@ -104,7 +115,7 @@ describe('The routing table', () => {
 
 
 function ni(id, address, port) {
-  return { id: Buffer.from(id, 'hex'), address, port };
+  return { id: Buffer.from(id, 'hex'), address, port, family: 'ipv4' };
 }
 
 

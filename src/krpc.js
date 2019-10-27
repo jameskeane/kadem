@@ -5,30 +5,6 @@ const util = require('util'),
       debug = require('debug')('dht:rpc');
 
 
-module.exports = KRPCSocket;
-
-
-
-/**
- * @typedef {{
- *   address: !string,
- *   port: !number,
- *   family: string
- * }}
- */
-var PeerInfo;
-
-
-/**
- * @typedef {{
- *   address: !string,
- *   port: !number,
- *   family: string,
- *   id: !Buffer
- * }}
- */
-var NodeInfo;
-
 
 /**
  * Implements the KRPC Protocol, as defined in [BEP 0005].
@@ -40,7 +16,8 @@ var NodeInfo;
  * There are three message types: query, response, and error.
  * 
  * @constructor
- * @param {Socket} socket The socket to run krpc over.
+ * @param {import('dgram').Socket} socket The socket to run krpc over.
+ * @param {any=} opt_options
  * @extends {EventEmitter}
  */
 function KRPCSocket(socket, opt_options) {
@@ -62,15 +39,15 @@ function KRPCSocket(socket, opt_options) {
   this.outstandingTransactions_ = {};
 
   /**
-   * @type {Socket}
+   * @type {import('dgram').Socket}
    * @private
    */
   this.socket_ = socket;
 
   this.boundHandleMessage_ = this.handleMessage_.bind(this);
   this.boundHandleError = this.handleError_.bind(this);
-  this.socket_.on('message', this.boundHandleMessage_);
-  this.socket_.on('error', this.boundHandleError);
+  this.socket_.addListener('message', this.boundHandleMessage_);
+  this.socket_.addListener('error', this.boundHandleError);
 };
 util.inherits(KRPCSocket, EventEmitter);
 
@@ -296,10 +273,11 @@ function decodeRecievedNodes(buffer) {
 /**
  * @param {Buffer} id The node's id.
  * @param {PeerInfo} peer The peer.
+ * @param {Buffer=} token Optional write token of this peer.
  * @return {NodeInfo} The combined id + peer, node.
  * @private
  */
-function makeNodeInfo(id, peer, token) {
+function makeNodeInfo(id, peer, token=undefined) {
   return {
     id: id,
     address: peer.address,
@@ -339,3 +317,6 @@ function encodeCompactNodeSet(nodes) {
   });
   return buf;
 };
+
+
+module.exports = { KRPCSocket };
