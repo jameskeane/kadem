@@ -155,6 +155,8 @@ util.inherits(DHT, EventEmitter);
  * @param {string} filename The filename to load from.
  */
 DHT.load = function(filename) {
+  if (filename == undefined || !fs.existsSync(filename)) return new DHT();
+
   let state = JSON.parse(fs.readFileSync(filename).toString('utf-8'));
   return new DHT({
     K: state.K,
