@@ -1,8 +1,8 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 
 
-class PromiseSelector {
+export class PromiseSelector {
   constructor() {
     /** @type {Array<Promise>} */
     this.promises = [];
@@ -47,7 +47,7 @@ class PromiseSelector {
  * @param {Buffer} data The data to hash.
  * @return {Buffer} The sha1 hash.
  */
-function sha1(data) {
+export function sha1(data) {
   return crypto.createHash('sha1').update(data).digest();
 };
 
@@ -57,7 +57,7 @@ function sha1(data) {
  * A simple fixed length priority queue, used for DHT navigation.
  * @template T
  */
-class PQueue {
+export class PQueue {
   /**
    * @param {number} fixedLen The maximum number of items in the queue.
    */
@@ -93,9 +93,3 @@ class PQueue {
         .map(([n, v]) => v);
   }
 }
-
-
-module.exports = {
-  PromiseSelector, sha1, PQueue
-};
-

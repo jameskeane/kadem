@@ -1,16 +1,17 @@
-'use strict';
-module.exports = DHT;
-const util = require('util'),
-      dgram = require('dgram'),
-      crypto = require('crypto'),
-      fs = require('fs'),
-      EventEmitter = require('events').EventEmitter,
-      debug = require('debug')('dht'),
-      { RoutingTable, distance } = require('./routing'),
-      { KRPCSocket } = require('./krpc'),
-      { PromiseSelector, PQueue } = require('./util'),
-      TokenStore = require('./token-store'),
-      bep44 = require('./storage');
+import util from 'util';
+import dgram from 'dgram';
+import crypto from 'crypto';
+import fs from 'fs';
+import EventEmitter from 'events';
+
+import { RoutingTable, distance } from '#root/src/routing';
+import { KRPCSocket } from '#root/src/krpc';
+import { PromiseSelector, PQueue } from '#root/src/util';
+import TokenStore from '#root/src/token-store';
+import bep44 from '#root/src/storage';
+
+import debugLogger from 'debug';
+const debug = debugLogger('dht');
 
 
 
@@ -57,7 +58,7 @@ const BOOTSTRAP_NODES = [
  * @param {DHTOptions=} opt_options Optional initialization options
  * @extends {EventEmitter}
  */
-function DHT(opt_options) {
+export default function DHT(opt_options) {
   EventEmitter.call(this);
 
   // Initialize the options

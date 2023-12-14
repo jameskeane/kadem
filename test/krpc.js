@@ -1,9 +1,10 @@
-const assert = require('assert'),
-      EventEmitter = require('events').EventEmitter,
-      sinon = require('sinon'),
-      bencode = require('bencode'),
-      { KRPCSocket } = require('../src/krpc');
+import assert from 'assert';
 
+import { EventEmitter } from 'events';
+import sinon from 'sinon';
+import bencode from 'bencode';
+
+import { KRPCSocket } from '#root/src/krpc';
 
 describe('KRPC Protocol', () => {
   let socketMock = null;

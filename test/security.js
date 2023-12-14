@@ -1,5 +1,5 @@
-const assert = require('assert');
-const bep42 = require('../src/security');
+import assert from 'assert';
+import { computeSecureNodeId } from '#root/src/security';
 
 
 describe('BEP42 - DHT Security Extension', () => {
@@ -14,11 +14,11 @@ describe('BEP42 - DHT Security Extension', () => {
     ];
 
     vs.forEach((v) => {
-      const e = bep42.computeSecureNodeId(v[0], v[1]);
+      const e = computeSecureNodeId(v[0], v[1]);
 
       // first two bytes should be 0x5f and 0xbf
       // third byte only has it's most significant bit pulled
-      assert.deepEqual(e.slice(0, 2), [v[2], v[3]]);
+      assert.deepEqual(Array.from(e.slice(0, 2)), [v[2], v[3]]);
       assert.equal(e[2] & 0xf0, v[4]);
       assert.equal(e[19], v[1]);
     });

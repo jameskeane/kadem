@@ -1,4 +1,4 @@
-const crc32c = require("sse4_crc32");
+import crc32c from "sse4_crc32";
 
 
 
@@ -9,7 +9,7 @@ const crc32c = require("sse4_crc32");
  * @param {=number} opt_rand Optionally specify the random parameter.
  * @return {!Buffer} The secure node id.
  */
-function computeSecureNodeId(ipaddr, opt_rand) {
+export function computeSecureNodeId(ipaddr, opt_rand) {
   const rand = () => parseInt(Math.random() * 255, 10);
 
   // todo support ipv6
@@ -30,10 +30,5 @@ function computeSecureNodeId(ipaddr, opt_rand) {
 
   id[19] = r;
   return id;
-};
-
-
-module.exports = {
-  computeSecureNodeId: computeSecureNodeId
 };
 

@@ -1,8 +1,10 @@
-const assert = require('assert');
-const crypto = require('crypto');
-const bencode = require('bencode');
-const ed25519 = require('ed25519-supercop');
-const { createCluster, destroyCluster } = require('./util');
+import assert from 'assert';
+import crypto from 'crypto';
+import ed25519 from 'ed25519-supercop';
+import { createCluster, destroyCluster } from '#root/test/util';
+
+import bencode from 'bencode';
+
 
 
 const ED_SEED = Buffer.from(
@@ -58,13 +60,13 @@ describe('BEP44 - DHT Storage Extension', () => {
 
     // The data should now be stored in the 8 closest nodes
     // (which we know since we've fixed the node ids)
-    const getStoredKeys = (n) => n.extensions_[0].store_.keys();
+    const getStoredSize = (n) => n.extensions_[0].store_.size();
     const expected = [
       0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
       1, 1, 0, 0, 1, 0, 1, 1, 1, 0
     ];
     cluster.forEach((n, i) => {
-      assert.equal(getStoredKeys(n).length, expected[i]);
+      assert.equal(getStoredSize(n), expected[i]);
     });
 
     // make sure we ask a node that doesn't have it stored locally

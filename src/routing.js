@@ -1,5 +1,7 @@
-const { EventEmitter } = require('events');
-const debug = require('debug')('dht:routing');
+import { EventEmitter } from 'events';
+
+import debugLogger from 'debug';
+const debug = debugLogger('dht:routing');
 
 
 
@@ -75,7 +77,7 @@ class Bucket {
  */
 
 
-class RoutingTable extends EventEmitter {
+export class RoutingTable extends EventEmitter {
   /**
    * @param {Buffer} localId The local node id of this routing table.
    * @param {RoutingOptions} options Configuration for this routing table.
@@ -409,7 +411,7 @@ class RoutingTable extends EventEmitter {
  * @param {Buffer} secondId The second id.
  * @return {number} The 'distance' metric between the two nodes.
  */
-function distance(firstId, secondId) {
+export function distance(firstId, secondId) {
   let distance = 0
   let i = 0
   const min = Math.min(firstId.length, secondId.length)
@@ -445,4 +447,3 @@ function rand_on_range(min, max) {
       .map((d, i) => d + min[i]));
 }
 
-module.exports = { RoutingTable, distance };

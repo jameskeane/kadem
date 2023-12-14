@@ -1,12 +1,12 @@
-const ed25519 = require('ed25519-supercop'),
-      bencode = require('bencode'),
-      debug = require('debug')('dht:storage'),
-      TokenStore = require('./token-store'),
-      { distance } = require('./routing'),
-      { sha1, PQueue } = require('./util');
+import ed25519 from 'ed25519-supercop';
+import bencode from 'bencode';
 
+import TokenStore from '#root/src/token-store';
+import { distance } from '#root/src/routing';
+import { sha1, PQueue } from '#root/src/util';
 
-module.exports = DHTStorage;
+import debugLogger from 'debug';
+const debug = debugLogger('dht:storage');
 
 
 
@@ -16,7 +16,7 @@ module.exports = DHTStorage;
  * @constructor
  * @param {IDHT} dht The DHT instance that this extension is extending
  */
-function DHTStorage(dht) {
+export default function DHTStorage(dht) {
   this.provides = ['get', 'put'];
 
   /**

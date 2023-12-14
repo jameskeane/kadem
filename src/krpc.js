@@ -1,8 +1,11 @@
-const util = require('util'),
-      EventEmitter = require('events').EventEmitter,
-      bencode = require('bencode'),
-      crypto = require('crypto'),
-      debug = require('debug')('dht:rpc');
+import util from 'util';
+
+import { EventEmitter } from 'events';
+import bencode from 'bencode';
+import crypto from 'crypto';
+
+import debugLogger from 'debug';
+const debug = debugLogger('dht:rpc');
 
 
 
@@ -20,7 +23,7 @@ const util = require('util'),
  * @param {any=} opt_options
  * @extends {EventEmitter}
  */
-function KRPCSocket(socket, opt_options) {
+export function KRPCSocket(socket, opt_options) {
   EventEmitter.call(this);
   opt_options = opt_options || {};
 
@@ -317,6 +320,3 @@ function encodeCompactNodeSet(nodes) {
   });
   return buf;
 };
-
-
-module.exports = { KRPCSocket };

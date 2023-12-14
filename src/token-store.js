@@ -1,8 +1,5 @@
-const crypto = require('crypto');
-const LRU = require('lru-cache');
-
-
-module.exports = TokenStore;
+import crypto from 'crypto';
+import { LRUCache } from 'lru-cache';
 
 
 
@@ -13,7 +10,7 @@ const SECRET_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes
 /**
  * @constructor
  */
-function TokenStore() {
+export default function TokenStore() {
   // The BitTorrent implementation uses the SHA1 hash of the IP address
   // concatenated onto a secret that changes every five minutes and tokens
   // up to ten minutes old are accepted.
@@ -37,7 +34,7 @@ function TokenStore() {
   /**
    * The data store.
    */
-  this.store_ = new LRU({
+  this.store_ = new LRUCache({
     max: 500,
     maxAge: 7.2e+6 // 2 hours
   });
@@ -49,7 +46,7 @@ function TokenStore() {
  */
 TokenStore.prototype.dispose = function() {
   clearInterval(this.refreshInterval_);
-  this.store_.reset();
+  this.store_.clear();
 };
 
 
@@ -111,4 +108,13 @@ TokenStore.prototype.getWriteToken = function(target, node) {
  */
 TokenStore.prototype.keys = function() {
   return this.store_.keys();
+};
+
+
+/**
+ * Get the stored size.
+ * @return {!number}
+ */
+TokenStore.prototype.size = function() {
+  return this.store_.size;
 };

@@ -1,7 +1,6 @@
-const assert = require('assert');
-const sinon = require('sinon');
-const { RoutingTable } = require('../src/routing');
-
+import assert from 'assert';
+import sinon from 'sinon';
+import { RoutingTable } from '#root/src/routing';
 
 
 

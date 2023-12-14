@@ -1,8 +1,8 @@
-const DHT = require('../src');
+import DHT from '#root/src/index';
 
 
 
-async function createCluster(n, port_start) {
+export async function createCluster(n, port_start) {
   const ids = Array.isArray(n) ? n : [];
   n = Array.isArray(n) ? n.length : n;
 
@@ -30,11 +30,6 @@ async function createCluster(n, port_start) {
   return nodes;
 };
 
-function destroyCluster(cluster) {
+export function destroyCluster(cluster) {
   cluster.forEach((n) => n.dispose());
 }
-
-module.exports = {
-  createCluster: createCluster,
-  destroyCluster: destroyCluster
-};

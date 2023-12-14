@@ -1,11 +1,10 @@
-const ed25519 = require('ed25519-supercop'),
-      bencode = require('bencode'),
-      debug = require('debug')('dht:storage'),
-      TokenStore = require('./token-store'),
-      { sha1 } = require('./util');
+import ed25519 from 'ed25519-supercop';
+import bencode from 'bencode';
+import TokenStore from '#root/src/token-store';
+import { sha1 } from '#root/src/util';
 
-
-module.exports = DHTPubSub;
+import debugLogger from 'debug';
+const debug = debugLogger('dht:storage');
 
 
 
@@ -13,7 +12,7 @@ module.exports = DHTPubSub;
  * Publish/Subscribe Extension for the DHT.
  * Implements [BEP-50](http://www.bittorrent.org/beps/bep_0050.html)
  */
-function DHTPubSub(dht) {
+export default function DHTPubSub(dht) {
   this.provides = ['publish', 'subscribe'];
 
   /**

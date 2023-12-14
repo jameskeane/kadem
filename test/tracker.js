@@ -1,7 +1,8 @@
-const assert = require('assert');
-const { createCluster, destroyCluster } = require('./util');
-const { sha1 } = require('../src/util');
-const { distance } = require('../src/routing');
+import assert from 'assert'
+;
+import { createCluster, destroyCluster } from '#root/test/util';
+import { sha1 } from '#root/src/util';
+import { distance } from '#root/src/routing';
 
 
 describe('The DHT tracker methods', () => {
@@ -56,13 +57,13 @@ describe('The DHT tracker methods', () => {
 
       // The peers should now be stored in the 8 closest nodes
       // (which we know since we've fixed the node ids)
-      const getStoredKeys = (n) => n.announcedPeers_.store_.keys();
+      const getStoredSize = (n) => n.announcedPeers_.size();
       const expected = [
         1, 0, 0, 0, 1, 0, 1, 1, 0, 1,
         1, 1, 0, 0, 0, 0, 0, 1, 0, 0
       ];
       cluster.forEach((n, i) => {
-        assert.equal(getStoredKeys(n).length, expected[i]);
+        assert.equal(getStoredSize(n), expected[i]);
       });
 
       peers = await cluster[15].get_peers(target);
@@ -95,7 +96,8 @@ describe('The DHT tracker methods', () => {
 
       // The peers should now be stored in the 8 closest nodes
       // (which we know since we've fixed the node ids)
-      const getStoredKeys = (n) => n.announcedPeers_.store_.keys();
+      const getStoredSize = (n) => n.announcedPeers_.size();
+
       // const target1_closest = [14,  1,  2, 16,  5, 12, 18,  4];
       // const target2_closest = [13, 19,  3, 15,  8, 18,  4,  5];
       const expected = [
@@ -104,7 +106,7 @@ describe('The DHT tracker methods', () => {
       ];
 
       cluster.forEach((n, i) => {
-        assert.equal(getStoredKeys(n).length, expected[i], `cluster node ${i}`);
+        assert.equal(getStoredSize(n), expected[i], `cluster node ${i}`);
       });
 
       [p1, p2] = await Promise.all([
