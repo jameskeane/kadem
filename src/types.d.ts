@@ -1,13 +1,10 @@
+// import { EventEmitter } from 'events';
+
+
 interface PeerInfo {
   address: string,
   port: number,
-  family: 'ipv4'|'ipv6'
-}
-
-interface AddressInfo {
-  address: string,
-  port: number,
-  family: 'ipv4'|'ipv6'
+  family?: 'ipv4'|'ipv6'
 }
 
 
@@ -30,3 +27,42 @@ declare module 'ed25519-supercop' {
   function sign(message: Buffer, publicKey: Buffer, secretKey: Buffer): Buffer;
 }
 
+type EventEmitter = import('events').EventEmitter;
+
+type KRPCQueryArgument = { [key: string]: any|((p: PeerInfo, m: string, a: KRPCQueryArgument )=>any)};
+
+interface IKRPC extends EventEmitter {
+  query(peer:PeerInfo|PeerInfo[], method: string, opt_args: KRPCQueryArgument): Promise<any>;
+}
+
+interface IRoutingTable {
+
+}
+
+type ClosestCallback<T> = (r: any, n: NodeInfo) => T;
+
+interface IDHT {
+  id: Buffer,
+  K_: number,    // Default number of closest nodes to query
+  rpc_: IKRPC,
+  nodes_: IRoutingTable,
+
+  closest_<T>(target: Buffer, method: string, args: any, opt_rescb:ClosestCallback<T>): Promise<NonNullable<T> | undefined>;
+
+  closestNodes(id: Buffer, n?:number): Array<NodeInfo>;
+}
+
+interface IDHTExtension {
+  provides: string[];
+  dispose(): void;
+}
+
+interface IDHTExtensionConstructor {
+  new(dht: IDHT): IDHTExtension;
+}
+
+
+interface ITraversableQueryBase {
+  node?: NodeInfo;
+  r: { nodes: NodeInfo[] };
+}

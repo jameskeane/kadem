@@ -6,9 +6,9 @@ import { createCluster, destroyCluster } from '#root/test/util';
 import bencode from 'bencode';
 
 
-
 const ED_SEED = Buffer.from(
     'ae460d331b6707d14af2b11315b490178a649c7bb39e075009b5e7d304d9ecf8', 'hex');
+
 
 describe('BEP44 - DHT Storage Extension', () => {
   let cluster = null;
@@ -36,7 +36,7 @@ describe('BEP44 - DHT Storage Extension', () => {
       '58187355b6fc57c8d167d20d9dce06b3cb6a9da6',
       '0f02498b891023f4f68814d2ee861bdaf7c44fe6',
       '50487e979b7406d35d45f0c377f808f02f3afcda'
-    ], 30000);
+    ], 40000);
   });
 
   afterEach(() => {

@@ -1,18 +1,36 @@
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 
 
+/**
+ * The 'promise selector' allows us to simulate a more traditional networking
+ * api. i.e. loop and 'block' until any outstanding request resolves.
+ * @template T
+ */
 export class PromiseSelector {
-  constructor() {
-    /** @type {Array<Promise>} */
+  /**
+   * @typedef {Promise<[Error|undefined, T|undefined, ()=>void]>} WrappingPromise
+   */
+
+  /**
+   * @param {Array<Promise<T>>=} opt_init Optionally initialize the selector.
+   */
+  constructor(opt_init) {
+    /** @type {Array<WrappingPromise>} */
     this.promises = [];
+
+    if (opt_init) this.add(opt_init);
   }
 
+  /**
+   * The number of unresolved promises in the select queue.
+   * @return {number}
+   */
   get length() { return this.promises.length; }
 
   /**
    * Add promises to the selector.
-   * @param {Array.<Promise>|Promise} promises
+   * @param {Array.<Promise<T>>|Promise<T>} promises
    */
   add(promises) {
     if (!Array.isArray(promises)) promises = [promises];
@@ -20,22 +38,27 @@ export class PromiseSelector {
     promises
         // .filter((p) => this.promises.indexOf(p) === -1)
         .forEach((p) => {
-          /** @type {Promise} */
+          /** @type {WrappingPromise} */
           let pr;
           const remove = () => this.promises.splice(this.promises.indexOf(pr), 1);
           pr = p.then(
-            (res) => [null, res, remove],
-            (err) => [err, null, remove]);
+            (res) => [undefined, res, remove],
+            (err) => [err, undefined, remove]);
           this.promises.push(pr);
         });
   }
 
+  /**
+   * Get the next promise that resolves or rejects.
+   * @return {Promise<T>|null}
+   */
   next() {
     if (this.promises.length === 0) return null;
     return Promise.race(this.promises)
         .then(([err, res, remove]) => {
           remove();
           if (err) throw err;
+          if (res === undefined) throw new Error("Result is undefined");
           return res;
         });
   }

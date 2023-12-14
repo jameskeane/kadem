@@ -16,7 +16,7 @@
         "noFallthroughCasesInSwitch": true,
         "preserveConstEnums": true,
         "preserveWatchOutput": true,
-        "target": "ES2017"
+        "module": "node16"
     },
     "include": [
         "src/types.d.ts",

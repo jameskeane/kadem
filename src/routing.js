@@ -18,7 +18,7 @@ class Node {
     this.id = (typeof node.id === 'string') ?
         Buffer.from(node.id, 'hex') : node.id;
 
-    /** @type {AddressInfo} */
+    /** @type {PeerInfo} */
     this.address = { address: node.address, port: node.port, family: node.family };
     this.token = node.token;
 
@@ -168,6 +168,7 @@ export class RoutingTable extends EventEmitter {
 
   /**
    * @param {Buffer} id The id to search for.
+   * @return {NodeInfo[]} The node info
    */
   closest(id, n=10) {
     id = (typeof id === 'string') ? Buffer.from(id, 'hex') : id;
@@ -262,7 +263,7 @@ export class RoutingTable extends EventEmitter {
 
   /**
    * @param {Node} node The node to insert.
-   * @param {boolean} relaxed, whether to use relaxed mode... todo
+   * @param {boolean=} relaxed, whether to use relaxed mode... todo
    */
   async _insertNode(node, relaxed) {
     // todo protect against rogue actor flooding ids using ip address checks
@@ -285,7 +286,7 @@ export class RoutingTable extends EventEmitter {
 
       // split the bucket if it contains the localId:
       if (bucket.min <= this.localId && this.localId < bucket.max) {
-        if (this._split(bucket, relaxed)) {
+        if (this._split(bucket, !!relaxed)) {
           if (bucket.left === null || bucket.right === null)
             throw new Error('Bucket could not be split.');
           bucket = (node.id < bucket.left.max) ? bucket.left : bucket.right;

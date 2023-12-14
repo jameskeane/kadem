@@ -6,6 +6,7 @@ import bencode from 'bencode';
 
 import { KRPCSocket } from '#root/src/krpc';
 
+
 describe('KRPC Protocol', () => {
   let socketMock = null;
   let krpc = null;
