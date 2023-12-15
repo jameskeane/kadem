@@ -1,7 +1,7 @@
 ![Kadem](https://i.imgur.com/5yfwRZM.png)
 [![CI](https://github.com/jameskeane/kadem/actions/workflows/ci.yml/badge.svg)](https://github.com/jameskeane/kadem/actions/workflows/ci.yml)
 
-An implementation of the BiTorrent DHT (Kademlia).
+An implementation of the BitTorrent DHT (Kademlia).
 
 Supports:
  - BEP-42 with `sse4_crc32` optional dependency.
