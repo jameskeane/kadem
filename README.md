@@ -22,7 +22,7 @@ dht.listen(/** listening port, can be anything */ 8468);
 const keys = ed25519.createKeyPair();
 
 // store mutable value
-dht.put(keys.publicKey, (sign, r) => sign({ v: 'example-mutable'}, keys.secretKey));
+await dht.put(keys.publicKey, (sign, r) => sign({ v: 'example-mutable'}, keys.secretKey));
 
 // retrieve mutable value
 const value = await dht.get({ k: keys.publicKey });
